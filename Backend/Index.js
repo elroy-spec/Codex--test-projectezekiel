@@ -1,3 +1,12 @@
+const questions = {
+  math: [
+    { q: "5 + 3", options: [5, 6, 7, 8], answer: 8 },
+    { q: "10 - 4", options: [5, 6, 7, 8], answer: 6 }
+  ],
+  physics: [
+    { q: "Unit of force?", options: ["Newton", "Watt", "Joule"], answer: "Newton" }
+  ]
+};
 const express = require("express");
 const app = express();
 
