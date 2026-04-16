@@ -1,46 +1,16 @@
-const express = require("express");
-const app = express();
 
+const express = require("express");
+const OpenAI = require("openai");
+
+const app = express();
 app.use(express.json());
 
 /**
- * QUESTION DATABASE (Phase 3.5)
+ * AI CLIENT
+ * Make sure OPENAI_API_KEY is set in Replit Secrets
  */
-const questions = {
-  math: {
-    easy: [
-      { q: "2 + 2", options: [1, 2, 3, 4], answer: 4 },
-      { q: "5 - 1", options: [2, 3, 4, 5], answer: 4 }
-    ],
-    medium: [
-      { q: "12 × 3", options: [24, 30, 36, 42], answer: 36 }
-    ]
-  },
-
-  physics: {
-    easy: [
-      { q: "Unit of force?", options: ["Newton", "Watt"], answer: "Newton" }
-    ],
-    medium: [
-      { q: "Speed formula?", options: ["d/t", "t/d"], answer: "d/t" }
-    ]
-  }
-};
-
-/**
- * BASE ROUTE
- */
-app.get("/api/", (req, res) => {
-  res.json({
-    name: "API Server",
-    status: "running",
-    endpoints: [
-      "GET /api/",
-      "GET /api/healthz",
-      "GET /api/topics",
-      "GET /api/question?topic=<topic>&difficulty=<easy|medium>"
-    ]
-  });
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 /**
@@ -51,42 +21,87 @@ app.get("/api/healthz", (req, res) => {
 });
 
 /**
- * TOPICS LIST
+ * TOPICS (optional fallback system)
  */
 app.get("/api/topics", (req, res) => {
   res.json({
-    topics: Object.keys(questions)
+    topics: ["math", "physics", "chemistry", "biology", "general"]
   });
 });
 
 /**
- * SMART QUESTION ENGINE
+ * BASIC QUESTION (fallback / non-AI mode)
  */
 app.get("/api/question", (req, res) => {
   const topic = req.query.topic || "math";
-  const difficulty = req.query.difficulty || "easy";
-
-  const topicData = questions[topic];
-
-  if (!topicData) {
-    return res.json({ error: "Invalid topic" });
-  }
-
-  const pool = topicData[difficulty];
-
-  if (!pool || pool.length === 0) {
-    return res.json({ error: "No questions for this difficulty" });
-  }
-
-  const randomIndex = Math.floor(Math.random() * pool.length);
-  const question = pool[randomIndex];
 
   res.json({
     topic,
-    difficulty,
-    question: question.q,
-    options: question.options
+    question: "What is 2 + 2?",
+    options: [1, 2, 3, 4],
+    answer: 4
   });
+});
+
+/**
+ * AI QUESTION GENERATOR (MAIN FEATURE)
+ */
+app.get("/api/ai-question", async (req, res) => {
+  try {
+    const topic = req.query.topic || "math";
+    const difficulty = req.query.difficulty || "easy";
+
+    const prompt = `
+You are a question generator for students.
+
+Generate ONE multiple choice question.
+
+Rules:
+- Topic: ${topic}
+- Difficulty: ${difficulty}
+- Must be clear and educational
+- Must have 4 options
+- Only ONE correct answer
+
+Return ONLY valid JSON:
+{
+  "question": "...",
+  "options": ["A", "B", "C", "D"],
+  "answer": "..."
+}
+`;
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You generate strict JSON only. No explanations."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    });
+
+    const text = response.choices[0].message.content;
+
+    // safe parsing
+    const json = JSON.parse(text);
+
+    res.json({
+      topic,
+      difficulty,
+      ...json
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      error: "AI generation failed",
+      message: err.message
+    });
+  }
 });
 
 /**
