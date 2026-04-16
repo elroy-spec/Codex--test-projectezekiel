@@ -22,11 +22,20 @@ app.get("/topics", (req, res) => {
   });
 });
 app.get("/question", (req, res) => {
+  const topic = req.query.topic || "math";
+
+  const pool = questions[topic];
+
+  if (!pool) {
+    return res.json({ error: "No questions for this topic" });
+  }
+
+  const random = pool[Math.floor(Math.random() * pool.length)];
+
   res.json({
-    topic: "math",
-    question: "What is 5 + 3?",
-    options: [5, 6, 7, 8],
-    answer: 8
+    topic,
+    question: random.q,
+    options: random.options
   });
 });
 app.post("/check", (req, res) => {
